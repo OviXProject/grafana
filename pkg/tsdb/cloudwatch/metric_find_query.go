@@ -388,8 +388,7 @@ func (e *cloudWatchExecutor) handleGetMetrics(ctx context.Context, parameters *s
 		}
 	} else {
 		var err error
-		dsInfo := e.getDSInfo(region)
-		if namespaceMetrics, err = e.getMetricsForCustomMetrics(region, namespace, dsInfo.Profile); err != nil {
+		if namespaceMetrics, err = e.getMetricsForCustomMetrics(region, namespace); err != nil {
 			return nil, errutil.Wrap("unable to call AWS API", err)
 		}
 	}
@@ -415,9 +414,7 @@ func (e *cloudWatchExecutor) handleGetDimensions(ctx context.Context, parameters
 		}
 	} else {
 		var err error
-		dsInfo := e.getDSInfo(region)
-
-		if dimensionValues, err = e.getDimensionsForCustomMetrics(region, namespace, dsInfo.Profile); err != nil {
+		if dimensionValues, err = e.getDimensionsForCustomMetrics(region, namespace); err != nil {
 			return nil, errutil.Wrap("unable to call AWS API", err)
 		}
 	}
@@ -702,7 +699,7 @@ func (e *cloudWatchExecutor) resourceGroupsGetResources(region string, filters [
 	return &resp, nil
 }
 
-func (e *cloudWatchExecutor) getAllMetrics(region string, namespace string) (cloudwatch.ListMetricsOutput, error) {
+func (e *cloudWatchExecutor) getAllMetrics(region, namespace string) (cloudwatch.ListMetricsOutput, error) {
 	client, err := e.getCWClient(region)
 	if err != nil {
 		return cloudwatch.ListMetricsOutput{}, err
@@ -732,13 +729,14 @@ func (e *cloudWatchExecutor) getAllMetrics(region string, namespace string) (clo
 
 var metricsCacheLock sync.Mutex
 
-func (e *cloudWatchExecutor) getMetricsForCustomMetrics(region, namespace, profile string) ([]string, error) {
+func (e *cloudWatchExecutor) getMetricsForCustomMetrics(region, namespace string) ([]string, error) {
 	plog.Debug("Getting metrics for custom metrics", "region", region, "namespace", namespace)
 	metricsCacheLock.Lock()
 	defer metricsCacheLock.Unlock()
 
+	dsInfo := e.getDSInfo(region)
 	bldr := strings.Builder{}
-	for i, s := range []string{profile, region, namespace} {
+	for i, s := range []string{dsInfo.Profile, region, namespace} {
 		if i != 0 {
 			bldr.WriteString(":")
 		}
@@ -775,12 +773,14 @@ func (e *cloudWatchExecutor) getMetricsForCustomMetrics(region, namespace, profi
 
 var dimensionsCacheLock sync.Mutex
 
-func (e *cloudWatchExecutor) getDimensionsForCustomMetrics(region, namespace, profile string) ([]string, error) {
+func (e *cloudWatchExecutor) getDimensionsForCustomMetrics(region, namespace string) ([]string, error) {
+	dsInfo := e.getDSInfo(region)
+
 	dimensionsCacheLock.Lock()
 	defer dimensionsCacheLock.Unlock()
 
 	bldr := strings.Builder{}
-	for i, s := range []string{profile, region, namespace} {
+	for i, s := range []string{dsInfo.Profile, region, namespace} {
 		if i != 0 {
 			bldr.WriteString(":")
 		}
